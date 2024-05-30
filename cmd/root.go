@@ -70,6 +70,80 @@ func remotePath(path string, remotes []Remote) (string, bool) {
 
 var version string = "v0.2"
 
+func copyRemote(source, dest, d string, remotes []Remote) {
+	s, err := filepath.Abs(source)
+	if err != nil {
+		errorExit("stat %s: %s", source, err.Error())
+	}
+	if s == d {
+		errorExit("Nothing to do as '%s' and '%s' are the same", source, dest)
+	}
+
+	sRemote, sOk := remotePath(s, remotes)
+	if !sOk {
+		errorExit("Recommended to use the 'cp' command")
+	}
+	dRemote, dOk := remotePath(d, remotes)
+	if dOk {
+		errorExit("Recommended to use the 'cp' command")
+	}
+	sinfo, err := os.Stat(s)
+	if err != nil {
+		errorExit("stat %s: %s", source, err.Error())
+	} else if sinfo.IsDir() {
+		sRemote += "/"
+	} else {
+		if strings.HasSuffix(source, "/") {
+			errorExit("'%s' is a file, not a directory.", source)
+		}
+	}
+	dfolder := false
+	dinfo, err := os.Stat(d)
+	if os.IsNotExist(err) {
+		if strings.HasSuffix(dest, "/") {
+			err = os.MkdirAll(d, 0755)
+			if err != nil {
+				errorExit(err.Error())
+			}
+			dfolder = true
+		}
+	} else if err != nil {
+		errorExit("stat %s: %s", dest, err.Error())
+	} else {
+		if !dinfo.IsDir() && sinfo.IsDir() {
+			errorExit("cannot overwrite non-directory '%s' with directory '%s'", dest, source)
+		}
+		if !dinfo.IsDir() && strings.HasSuffix(dest, "/") {
+			errorExit("'%s' is a file, not a directory.", dest)
+		}
+	}
+	if dfolder || (dinfo != nil && dinfo.IsDir()) {
+		dRemote += "/"
+		if !sinfo.IsDir() {
+			dRemoteFile := filepath.Join(d, filepath.Base(s))
+			dsub, err := os.Stat(dRemoteFile)
+			if err == nil && dsub.IsDir() {
+				errorExit("cannot overwrite directory '%s' with file '%s'", dRemoteFile, source)
+			}
+			dRemote += filepath.Base(s)
+		}
+	}
+	a := []string{"copyto", sRemote, dRemote, fmt.Sprintf("--transfers=%d", parallel),
+		fmt.Sprintf("--checkers=%d", parallel), "-P"}
+	c := exec.Command("rclone", a...)
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	logrus.Debugf("'%s' => '%s'", sRemote, dRemote)
+	err = c.Start()
+	if err != nil {
+		errorExit("%s", err)
+	}
+	err = c.Wait()
+	if err != nil {
+		errorExit("%s", err)
+	}
+}
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:     "rcp",
@@ -77,7 +151,7 @@ var rootCmd = &cobra.Command{
 	Long:    `Copy SOURCE to DEST`,
 	Example: "rcp SOURCE DEST",
 	Version: version,
-	Args:    cobra.ExactArgs(2),
+	Args:    cobra.MinimumNArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		if parallel > 12 {
 			errorExit("The maximum number of parallel transfers is 12.")
@@ -87,19 +161,7 @@ var rootCmd = &cobra.Command{
 		if verbose {
 			logrus.SetLevel(logrus.DebugLevel)
 		}
-		source := args[0]
-		dest := args[1]
-		s, err := filepath.Abs(source)
-		if err != nil {
-			errorExit("stat %s: %s", source, err.Error())
-		}
-		d, err := filepath.Abs(dest)
-		if err != nil {
-			errorExit("stat %s: %s", source, err.Error())
-		}
-		if source == dest {
-			errorExit("Nothing to do as '%s' and '%s' are the same", source, dest)
-		}
+
 		mounts, err := mountinfo.GetMounts(func(mount *mountinfo.Info) (skip, stop bool) {
 			ok := isRclone(mount.FSType)
 			if ok {
@@ -132,65 +194,17 @@ var rootCmd = &cobra.Command{
 				Mountpoint: mount.Mountpoint,
 			})
 		}
-		sRemote, sOk := remotePath(s, remotes)
-		dRemote, dOk := remotePath(d, remotes)
-		if !sOk && !dOk {
-			errorExit("'%s' and '%s' no remote mount found", s, d)
+		if len(remotes) == 0 {
+			errorExit("Recommended to use the 'cp' command")
 		}
-		sinfo, err := os.Stat(s)
+
+		dest := args[len(args)-1]
+		d, err := filepath.Abs(dest)
 		if err != nil {
-			errorExit("stat %s: %s", source, err.Error())
-		} else if sinfo.IsDir() {
-			sRemote += "/"
-		} else {
-			if strings.HasSuffix(source, "/") {
-				errorExit("'%s' is a file, not a directory.", source)
-			}
-		}
-		dfolder := false
-		dinfo, err := os.Stat(d)
-		if os.IsNotExist(err) {
-			if strings.HasSuffix(dest, "/") {
-				err = os.MkdirAll(d, 0755)
-				if err != nil {
-					errorExit(err.Error())
-				}
-				dfolder = true
-			}
-		} else if err != nil {
 			errorExit("stat %s: %s", dest, err.Error())
-		} else {
-			if !dinfo.IsDir() && sinfo.IsDir() {
-				errorExit("cannot overwrite non-directory '%s' with directory '%s'", dest, source)
-			}
-			if !dinfo.IsDir() && strings.HasSuffix(dest, "/") {
-				errorExit("'%s' is a file, not a directory.", dest)
-			}
 		}
-		if dfolder || (dinfo != nil && dinfo.IsDir()) {
-			dRemote += "/"
-			if !sinfo.IsDir() {
-				dRemoteFile := filepath.Join(d, filepath.Base(s))
-				dsub, err := os.Stat(dRemoteFile)
-				if err == nil && dsub.IsDir() {
-					errorExit("cannot overwrite directory '%s' with file '%s'", dRemoteFile, source)
-				}
-				dRemote += filepath.Base(s)
-			}
-		}
-		a := []string{"copyto", sRemote, dRemote, fmt.Sprintf("--transfers=%d", parallel),
-			fmt.Sprintf("--checkers=%d", parallel), "-P"}
-		c := exec.Command("rclone", a...)
-		c.Stdout = os.Stdout
-		c.Stderr = os.Stderr
-		logrus.Debugf("'%s' => '%s'", sRemote, dRemote)
-		err = c.Start()
-		if err != nil {
-			errorExit("%s", err)
-		}
-		err = c.Wait()
-		if err != nil {
-			errorExit("%s", err)
+		for _, arg := range args[:len(args)-1] {
+			copyRemote(arg, dest, d, remotes)
 		}
 	},
 }
