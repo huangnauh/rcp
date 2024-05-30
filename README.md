@@ -1,7 +1,9 @@
 Copy SOURCE to DEST
 
 Usage:
+```
   rcp [flags]
+```
 
 Examples:
 ```
