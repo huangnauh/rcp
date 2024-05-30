@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/manifoldco/promptui"
 	"github.com/moby/sys/mountinfo"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -80,12 +81,29 @@ func copyRemote(source, dest, d string, remotes []Remote) {
 	}
 
 	sRemote, sOk := remotePath(s, remotes)
-	if !sOk {
+	dRemote, dOk := remotePath(d, remotes)
+	if !sOk && !dOk {
 		errorExit("Recommended to use the 'cp' command")
 	}
-	dRemote, dOk := remotePath(d, remotes)
 	if dOk {
-		errorExit("Recommended to use the 'cp' command")
+		prompt := promptui.Prompt{
+			Label:     "Uploading will not be immediately visible in the file system; Would you like to continue?",
+			IsConfirm: true,
+			Default:   "n",
+			Validate: func(s string) error {
+				if len(s) <= 1 && strings.Contains("yYnN", s) {
+					return nil
+				}
+				return fmt.Errorf("invalid input")
+			},
+		}
+		result, err := prompt.Run()
+		if err != nil {
+			errorExit(err.Error())
+		}
+		if strings.Contains("nN", result) {
+			errorExit("Abort")
+		}
 	}
 	sinfo, err := os.Stat(s)
 	if err != nil {
