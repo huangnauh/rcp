@@ -68,12 +68,15 @@ func remotePath(path string, remotes []Remote) (string, bool) {
 	return path, false
 }
 
+var version string = "v0.2"
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:     "rcp",
 	Short:   "Copy SOURCE to DEST",
 	Long:    `Copy SOURCE to DEST`,
 	Example: "rcp SOURCE DEST",
+	Version: version,
 	Args:    cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		if parallel > 12 {
