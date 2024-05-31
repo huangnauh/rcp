@@ -1,0 +1,7 @@
+remotes:
+    - name: online
+      bucket: huangnauh
+      mountpoint: /online
+    - name: online
+      bucket: huangnauh
+      mountpoint: /online1
