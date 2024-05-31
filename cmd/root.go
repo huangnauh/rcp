@@ -52,9 +52,9 @@ func isSubFolder(base, sub string) (bool, error) {
 }
 
 type Remote struct {
-	Name       string
-	Bucket     string
-	Mountpoint string
+	Name       string `json:"name" yaml:"name"`
+	Bucket     string `json:"bucket" yaml:"bucket"`
+	Mountpoint string `json:"mountpoint" yaml:"mountpoint"`
 }
 
 func remotePath(path string, remotes []Remote) (string, bool) {
@@ -162,6 +162,51 @@ func copyRemote(source, dest, d string, remotes []Remote) {
 	}
 }
 
+func GetMounts() []Remote {
+	mounts, err := mountinfo.GetMounts(func(mount *mountinfo.Info) (skip, stop bool) {
+		ok := isRclone(mount.FSType)
+		if ok {
+			logrus.Debugf("remote mountpoint %s\n", mount.Mountpoint)
+			return false, false
+		}
+		return true, false
+	})
+	if err != nil {
+		errorExit("mount info: %s", err.Error())
+	}
+	remotes := []Remote{}
+	for _, mount := range mounts {
+		ss := strings.Split(mount.Source, ":")
+		if len(ss) != 2 {
+			continue
+		}
+		name := ss[0]
+		bucket := ss[1]
+		n := strings.Split(name, "{")
+		if len(n) > 2 {
+			continue
+		}
+		if len(n) == 2 {
+			name = n[0]
+		}
+		remotes = append(remotes, Remote{
+			Name:       name,
+			Bucket:     bucket,
+			Mountpoint: mount.Mountpoint,
+		})
+	}
+
+	cfg, err := ReadConfig("")
+	if err != nil {
+		errorExit("read config: %s", err.Error())
+	}
+	if cfg == nil {
+		return remotes
+	}
+	remotes = append(cfg.Remotes, remotes...)
+	return remotes
+}
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:     "rcp",
@@ -180,37 +225,16 @@ var rootCmd = &cobra.Command{
 			logrus.SetLevel(logrus.DebugLevel)
 		}
 
-		mounts, err := mountinfo.GetMounts(func(mount *mountinfo.Info) (skip, stop bool) {
-			ok := isRclone(mount.FSType)
-			if ok {
-				logrus.Debugf("remote mountpoint %s\n", mount.Mountpoint)
-				return false, false
+		remotes := GetMounts()
+		if save {
+			cfg := &Config{
+				Remotes: remotes,
 			}
-			return true, false
-		})
-		if err != nil {
-			errorExit("mount info: %s", err.Error())
-		}
-		remotes := []Remote{}
-		for _, mount := range mounts {
-			ss := strings.Split(mount.Source, ":")
-			if len(ss) != 2 {
-				continue
+			err := cfg.Write()
+			if err != nil {
+				errorExit(err.Error())
 			}
-			name := ss[0]
-			bucket := ss[1]
-			n := strings.Split(name, "{")
-			if len(n) > 2 {
-				continue
-			}
-			if len(n) == 2 {
-				name = n[0]
-			}
-			remotes = append(remotes, Remote{
-				Name:       name,
-				Bucket:     bucket,
-				Mountpoint: mount.Mountpoint,
-			})
+			return
 		}
 		if len(remotes) == 0 {
 			errorExit("Recommended to use the 'cp' command")
@@ -238,6 +262,7 @@ func Execute() {
 
 var parallel int
 var verbose bool
+var save bool
 
 func init() {
 	// Here you will define your flags and configuration settings.
@@ -249,5 +274,6 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
+	// rootCmd.Flags().BoolVar(&save, "save", false, "save config")
 	rootCmd.Flags().IntVar(&parallel, "parallel", 6, "The number of file transfers to run in parallel.")
 }
