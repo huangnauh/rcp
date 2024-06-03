@@ -1,4 +1,4 @@
-module github.com/huangnauh/rcp
+module github.com/huangnauh/hcp
 
 go 1.21.6
 

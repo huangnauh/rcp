@@ -28,4 +28,4 @@ jobs:
           go build -v .
       - name: Install
         run: |
-          go get -u github.com/huangnauh/rcp
+          go get -u github.com/huangnauh/hcp

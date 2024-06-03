@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strings"
 
@@ -207,12 +208,19 @@ func GetMounts() []Remote {
 	return remotes
 }
 
+func isRoot() bool {
+	currentUser, err := user.Current()
+	if err != nil {
+		errorExit("Need root user: %s", err)
+	}
+	return currentUser.Username == "root"
+}
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:     "rcp",
-	Short:   "Copy SOURCE to DEST",
-	Long:    `Copy SOURCE to DEST`,
-	Example: "rcp SOURCE DEST",
+	Use:     "hcp",
+	Short:   "Remote Copy CLI for houdeyun",
+	Example: "hcp SOURCE DEST",
 	Version: version,
 	Args:    cobra.MinimumNArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -223,6 +231,10 @@ var rootCmd = &cobra.Command{
 		}
 		if verbose {
 			logrus.SetLevel(logrus.DebugLevel)
+		}
+
+		if !isRoot() {
+			errorExit("Need root user")
 		}
 
 		remotes := GetMounts()
@@ -269,7 +281,7 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.rcp.yaml)")
+	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.hcp.yaml)")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.

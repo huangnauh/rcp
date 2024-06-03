@@ -21,7 +21,7 @@ THE SOFTWARE.
 */
 package main
 
-import "github.com/huangnauh/rcp/cmd"
+import "github.com/huangnauh/hcp/cmd"
 
 func main() {
 	cmd.Execute()

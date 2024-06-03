@@ -17,12 +17,12 @@ func (c *Config) Write() error {
 	if err != nil {
 		return err
 	}
-	rcpDir := filepath.Join(configDir, "rcp")
-	err = os.MkdirAll(rcpDir, 0644)
+	hcpDir := filepath.Join(configDir, "hcp")
+	err = os.MkdirAll(hcpDir, 0644)
 	if err != nil {
 		return err
 	}
-	configPath := filepath.Join(rcpDir, "rcp.yaml")
+	configPath := filepath.Join(hcpDir, "hcp.yaml")
 
 	fmt.Printf("[INFO] write config to %s\n", configPath)
 	file, err := os.OpenFile(configPath, os.O_TRUNC|os.O_RDWR|os.O_CREATE, 0644)
@@ -43,7 +43,7 @@ func ReadConfig(configPath string) (*Config, error) {
 		} else if err != nil {
 			return nil, err
 		}
-		configPath = filepath.Join(configDir, "rcp", "rcp.yaml")
+		configPath = filepath.Join(configDir, "hcp", "hcp.yaml")
 	}
 	file, err := os.OpenFile(configPath, os.O_RDONLY, 0644)
 	if os.IsNotExist(err) {

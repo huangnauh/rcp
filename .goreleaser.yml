@@ -2,10 +2,10 @@ before:
   hooks:
     - go mod download
 builds:
-  - id: "rcp"
+  - id: "hcp"
     env:
       - CGO_ENABLED=0
-    binary: rcp
+    binary: hcp
     flags:
       - -trimpath
     goos:
@@ -20,11 +20,17 @@ builds:
     goarm:
       - 6
       - 7
+nfpms:
+- license: MIT
+  formats:
+  - deb
+  - rpm
+  - apk
 
 archives:
   - id: default
     builds:
-      - rcp
+      - hcp
     format_overrides:
       - goos: windows
         format: zip
