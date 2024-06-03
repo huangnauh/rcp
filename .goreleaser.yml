@@ -10,22 +10,22 @@ builds:
       - -trimpath
     goos:
       - linux
-      - darwin
-      - windows
+      # - darwin
+      # - windows
     goarch:
       - amd64
-      - arm64
-      - 386
-      - arm
-    goarm:
-      - 6
-      - 7
-nfpms:
-- license: MIT
-  formats:
-  - deb
-  - rpm
-  - apk
+#       - arm64
+#       - 386
+#       - arm
+#     goarm:
+#       - 6
+#       - 7
+# nfpms:
+# - license: MIT
+#   formats:
+#   - deb
+#   - rpm
+#   - apk
 
 archives:
   - id: default
