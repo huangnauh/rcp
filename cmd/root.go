@@ -55,7 +55,32 @@ func isSubFolder(base, sub string) (bool, error) {
 type Remote struct {
 	Name       string `json:"name" yaml:"name"`
 	Bucket     string `json:"bucket" yaml:"bucket"`
+	Alias      string `json:"alias" yaml:"alias"`
 	Mountpoint string `json:"mountpoint" yaml:"mountpoint"`
+}
+
+func checkRemote(remote *Remote) bool {
+	if remote.Alias != "" {
+		alias := strings.TrimSuffix(remote.Alias, "/")
+		if alias == "" {
+			return false
+		}
+		splits := strings.Split(alias, ":")
+		if len(splits) < 2 {
+			return false
+		}
+		if splits[0] == "" {
+			return false
+		}
+		if splits[1] == "" {
+			return false
+		}
+		return true
+	}
+	if remote.Bucket != "" && remote.Name != "" {
+		return true
+	}
+	return false
 }
 
 func remotePath(path string, remotes []Remote) (string, bool) {
@@ -64,13 +89,19 @@ func remotePath(path string, remotes []Remote) (string, bool) {
 		if ok {
 			p := path[len(remote.Mountpoint):]
 			p = strings.TrimPrefix(p, "/")
+			if remote.Alias != "" {
+				alias := strings.TrimSuffix(remote.Alias, "/")
+				if alias != "" {
+					return strings.TrimSuffix(fmt.Sprintf("%s/%s", alias, p), "/"), true
+				}
+			}
 			return strings.TrimSuffix(fmt.Sprintf("%s:%s/%s", remote.Name, remote.Bucket, p), "/"), true
 		}
 	}
 	return path, false
 }
 
-var version string = "v0.1"
+var version string = "v0.2"
 
 func copyRemote(source, dest, d string, remotes []Remote) {
 	s, err := filepath.Abs(source)
@@ -164,10 +195,14 @@ func copyRemote(source, dest, d string, remotes []Remote) {
 }
 
 func GetMounts() []Remote {
+	cfg, err := ReadConfig("")
+	if err != nil {
+		errorExit("read config: %s", err.Error())
+	}
+
 	mounts, err := mountinfo.GetMounts(func(mount *mountinfo.Info) (skip, stop bool) {
 		ok := isRclone(mount.FSType)
 		if ok {
-			logrus.Debugf("remote mountpoint %s\n", mount.Mountpoint)
 			return false, false
 		}
 		return true, false
@@ -176,6 +211,16 @@ func GetMounts() []Remote {
 		errorExit("mount info: %s", err.Error())
 	}
 	remotes := []Remote{}
+	if cfg != nil {
+		for _, remote := range cfg.Remotes {
+			exist := checkRemote(&remote)
+			if !exist {
+				errorExit("remote config mountpoint %s not exist", remote.Mountpoint)
+			}
+			logrus.Debugf("remote config mountpoint %s\n", remote.Mountpoint)
+			remotes = append(remotes, remote)
+		}
+	}
 	for _, mount := range mounts {
 		ss := strings.Split(mount.Source, ":")
 		if len(ss) != 2 {
@@ -190,21 +235,19 @@ func GetMounts() []Remote {
 		if len(n) == 2 {
 			name = n[0]
 		}
+		if name == "" {
+			continue
+		}
+		if bucket == "" {
+			continue
+		}
+		logrus.Debugf("remote mountpoint %s\n", mount.Mountpoint)
 		remotes = append(remotes, Remote{
 			Name:       name,
 			Bucket:     bucket,
 			Mountpoint: mount.Mountpoint,
 		})
 	}
-
-	cfg, err := ReadConfig("")
-	if err != nil {
-		errorExit("read config: %s", err.Error())
-	}
-	if cfg == nil {
-		return remotes
-	}
-	remotes = append(cfg.Remotes, remotes...)
 	return remotes
 }
 
