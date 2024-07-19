@@ -200,16 +200,6 @@ func GetMounts() []Remote {
 		errorExit("read config: %s", err.Error())
 	}
 
-	mounts, err := mountinfo.GetMounts(func(mount *mountinfo.Info) (skip, stop bool) {
-		ok := isRclone(mount.FSType)
-		if ok {
-			return false, false
-		}
-		return true, false
-	})
-	if err != nil {
-		errorExit("mount info: %s", err.Error())
-	}
 	remotes := []Remote{}
 	if cfg != nil {
 		for _, remote := range cfg.Remotes {
@@ -220,6 +210,21 @@ func GetMounts() []Remote {
 			logrus.Debugf("remote config mountpoint %s\n", remote.Mountpoint)
 			remotes = append(remotes, remote)
 		}
+	}
+
+	if !autoFind {
+		return remotes
+	}
+
+	mounts, err := mountinfo.GetMounts(func(mount *mountinfo.Info) (skip, stop bool) {
+		ok := isRclone(mount.FSType)
+		if ok {
+			return false, false
+		}
+		return true, false
+	})
+	if err != nil {
+		errorExit("mount info: %s", err.Error())
 	}
 	for _, mount := range mounts {
 		ss := strings.Split(mount.Source, ":")
@@ -318,6 +323,7 @@ func Execute() {
 var parallel int
 var verbose bool
 var save bool
+var autoFind bool
 
 func init() {
 	// Here you will define your flags and configuration settings.
@@ -329,6 +335,7 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
+	rootCmd.Flags().BoolVar(&autoFind, "auto-find", false, "auto find mountpoint")
 	// rootCmd.Flags().BoolVar(&save, "save", false, "save config")
 	rootCmd.Flags().IntVar(&parallel, "parallel", 6, "The number of file transfers to run in parallel.")
 }
