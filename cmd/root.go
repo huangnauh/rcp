@@ -55,32 +55,7 @@ func isSubFolder(base, sub string) (bool, error) {
 type Remote struct {
 	Name       string `json:"name" yaml:"name"`
 	Bucket     string `json:"bucket" yaml:"bucket"`
-	Alias      string `json:"alias" yaml:"alias"`
 	Mountpoint string `json:"mountpoint" yaml:"mountpoint"`
-}
-
-func checkRemote(remote *Remote) bool {
-	if remote.Alias != "" {
-		alias := strings.TrimSuffix(remote.Alias, "/")
-		if alias == "" {
-			return false
-		}
-		splits := strings.Split(alias, ":")
-		if len(splits) < 2 {
-			return false
-		}
-		if splits[0] == "" {
-			return false
-		}
-		if splits[1] == "" {
-			return false
-		}
-		return true
-	}
-	if remote.Bucket != "" && remote.Name != "" {
-		return true
-	}
-	return false
 }
 
 func remotePath(path string, remotes []Remote) (string, bool) {
@@ -89,12 +64,6 @@ func remotePath(path string, remotes []Remote) (string, bool) {
 		if ok {
 			p := path[len(remote.Mountpoint):]
 			p = strings.TrimPrefix(p, "/")
-			if remote.Alias != "" {
-				alias := strings.TrimSuffix(remote.Alias, "/")
-				if alias != "" {
-					return strings.TrimSuffix(fmt.Sprintf("%s/%s", alias, p), "/"), true
-				}
-			}
 			return strings.TrimSuffix(fmt.Sprintf("%s:%s/%s", remote.Name, remote.Bucket, p), "/"), true
 		}
 	}
@@ -203,10 +172,6 @@ func GetMounts() []Remote {
 	remotes := []Remote{}
 	if cfg != nil {
 		for _, remote := range cfg.Remotes {
-			exist := checkRemote(&remote)
-			if !exist {
-				errorExit("remote config mountpoint %s not exist", remote.Mountpoint)
-			}
 			logrus.Debugf("remote config mountpoint %s\n", remote.Mountpoint)
 			remotes = append(remotes, remote)
 		}
