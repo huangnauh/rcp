@@ -56,21 +56,22 @@ type Remote struct {
 	Name       string `json:"name" yaml:"name"`
 	Bucket     string `json:"bucket" yaml:"bucket"`
 	Mountpoint string `json:"mountpoint" yaml:"mountpoint"`
+	RemoteUrl  string `json:"remote_url" yaml:"remote_url"`
 }
 
-func remotePath(path string, remotes []Remote) (string, bool) {
+func remotePath(path string, remotes []Remote) (string, string, string, bool) {
 	for _, remote := range remotes {
 		ok, _ := isSubFolder(remote.Mountpoint, path)
 		if ok {
 			p := path[len(remote.Mountpoint):]
 			p = strings.TrimPrefix(p, "/")
-			return strings.TrimSuffix(fmt.Sprintf("%s:%s/%s", remote.Name, remote.Bucket, p), "/"), true
+			return strings.TrimSuffix(fmt.Sprintf("%s:%s/%s", remote.Name, remote.Bucket, p), "/"), p, remote.RemoteUrl, true
 		}
 	}
-	return path, false
+	return path, "", "", false
 }
 
-var version string = "v0.3"
+var version string = "v0.4"
 
 func copyRemote(source, dest, d string, remotes []Remote) {
 	s, err := filepath.Abs(source)
@@ -81,12 +82,12 @@ func copyRemote(source, dest, d string, remotes []Remote) {
 		errorExit("Nothing to do as '%s' and '%s' are the same", source, dest)
 	}
 
-	sRemote, sOk := remotePath(s, remotes)
-	dRemote, dOk := remotePath(d, remotes)
+	sRemote, _, _, sOk := remotePath(s, remotes)
+	dRemote, dd, dUrl, dOk := remotePath(d, remotes)
 	if !sOk && !dOk {
 		errorExit("Recommended to use the 'cp' command")
 	}
-	if dOk {
+	if dOk && dUrl == "" {
 		prompt := promptui.Prompt{
 			Label:     "Uploading will not be immediately visible in the file system; Would you like to continue?",
 			IsConfirm: true,
@@ -154,6 +155,31 @@ func copyRemote(source, dest, d string, remotes []Remote) {
 	c.Stderr = os.Stderr
 	logrus.Debugf("'%s' => '%s'", sRemote, dRemote)
 	err = c.Start()
+	if err != nil {
+		errorExit("%s", err)
+	}
+	err = c.Wait()
+	if err != nil {
+		errorExit("%s", err)
+	}
+	if dUrl != "" {
+		dfolder, _ := filepath.Split(dd)
+		if len(dfolder) > 0 {
+			fresh(dUrl, dfolder)
+		} else {
+			fresh(dUrl, "/")
+		}
+	}
+}
+
+func fresh(url, dir string) {
+	logrus.Debugf("fresh %v", dir)
+	a := []string{"rc", "vfs/refresh", fmt.Sprintf("--url=%s", url),
+		fmt.Sprintf("dir=%s", dir), "recursive=true"}
+	c := exec.Command("rclone", a...)
+	// c.Stdout = os.Stdout
+	// c.Stderr = os.Stderr
+	err := c.Start()
 	if err != nil {
 		errorExit("%s", err)
 	}
