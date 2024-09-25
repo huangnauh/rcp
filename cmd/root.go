@@ -151,6 +151,9 @@ func copyRemote(source, dest, d string, remotes []Remote) {
 	a := []string{"copyto", sRemote, dRemote, fmt.Sprintf("--transfers=%d", parallel),
 		fmt.Sprintf("--checkers=%d", parallel), "-P"}
 	c := exec.Command("rclone", a...)
+	if debug {
+		logrus.Debugf("%s", c)
+	}
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
 	logrus.Debugf("'%s' => '%s'", sRemote, dRemote)
@@ -167,16 +170,21 @@ func copyRemote(source, dest, d string, remotes []Remote) {
 		if len(dfolder) > 0 {
 			fresh(dUrl, dfolder)
 		} else {
-			fresh(dUrl, "/")
+			fresh(dUrl, "")
 		}
 	}
 }
 
 func fresh(url, dir string) {
 	logrus.Debugf("fresh %v", dir)
-	a := []string{"rc", "vfs/refresh", fmt.Sprintf("--url=%s", url),
-		fmt.Sprintf("dir=%s", dir), "recursive=true"}
+	a := []string{"rc", "vfs/refresh", fmt.Sprintf("--url=%s", url), "recursive=true"}
+	if dir != "" {
+		a = append(a, fmt.Sprintf("dir=%s", dir))
+	}
 	c := exec.Command("rclone", a...)
+	if debug {
+		logrus.Debugf("%s", c)
+	}
 	// c.Stdout = os.Stdout
 	// c.Stderr = os.Stderr
 	err := c.Start()
@@ -305,6 +313,10 @@ var rootCmd = &cobra.Command{
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
+	_, debug = os.LookupEnv("HCP_DEBUG")
+	if debug {
+		verbose = true
+	}
 	err := rootCmd.Execute()
 	if err != nil {
 		os.Exit(1)
@@ -315,6 +327,7 @@ var parallel int
 var verbose bool
 var save bool
 var autoFind bool
+var debug bool
 
 func init() {
 	// Here you will define your flags and configuration settings.
