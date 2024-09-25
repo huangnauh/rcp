@@ -71,7 +71,7 @@ func remotePath(path string, remotes []Remote) (string, string, string, bool) {
 	return path, "", "", false
 }
 
-var version string = "v0.4"
+var version string = "v0.5"
 
 func copyRemote(source, dest, d string, remotes []Remote) {
 	s, err := filepath.Abs(source)
